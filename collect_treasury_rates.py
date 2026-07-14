@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
+import http.client
 import json
 import time
 import urllib.error
@@ -71,7 +73,13 @@ def fetch_json(url: str, retries: int = 3, timeout: int = 30) -> dict[str, Any]:
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 return json.load(response)
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+        except (
+            urllib.error.URLError,
+            TimeoutError,
+            ConnectionError,
+            http.client.HTTPException,
+            json.JSONDecodeError,
+        ) as exc:
             last_error = exc
             if attempt + 1 < retries:
                 time.sleep(2**attempt)
@@ -114,10 +122,12 @@ def collect_all(page_size: int) -> tuple[list[dict[str, Any]], dict[str, Any]]:
 
 
 def normalize(raw_rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    if not raw_rows:
+        raise ValueError("Empty dataset: the API returned no source rows")
+
     issues: list[str] = []
     normalized: list[dict[str, Any]] = []
     seen: set[tuple[str, str, str]] = set()
-    duplicate_count = 0
 
     for index, raw in enumerate(raw_rows, start=1):
         missing = REQUIRED_API_FIELDS - raw.keys()
@@ -126,6 +136,8 @@ def normalize(raw_rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dic
 
         try:
             parsed_date = date.fromisoformat(str(raw["record_date"]))
+            security_type = str(raw["security_type_desc"]).strip()
+            security_description = str(raw["security_desc"]).strip()
             raw_rate = str(raw["avg_interest_rate_amt"]).strip()
             rate = (
                 None
@@ -133,22 +145,54 @@ def normalize(raw_rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dic
                 else Decimal(raw_rate)
             )
             source_line = int(raw["src_line_nbr"])
+            fiscal_year = int(raw["record_fiscal_year"])
+            fiscal_quarter = int(raw["record_fiscal_quarter"])
+            calendar_year = int(raw["record_calendar_year"])
+            calendar_quarter = int(raw["record_calendar_quarter"])
+            calendar_month = int(raw["record_calendar_month"])
+            calendar_day = int(raw["record_calendar_day"])
         except (ValueError, TypeError, InvalidOperation) as exc:
             raise ValueError(f"Invalid typed value at row {index}: {exc}") from exc
 
+        if not security_type or not security_description:
+            raise ValueError(f"Blank composite-key field at row {index}")
+        if source_line < 1:
+            raise ValueError(f"Invalid source line number at row {index}")
         if rate is None:
             issues.append(f"row {index}: source interest rate is null")
         elif not Decimal("0") <= rate <= Decimal("100"):
-            issues.append(f"row {index}: interest rate outside 0..100")
+            raise ValueError(f"Interest rate outside 0..100 at row {index}")
+
+        expected_calendar_quarter = (parsed_date.month - 1) // 3 + 1
+        expected_fiscal_year = (
+            parsed_date.year + 1 if parsed_date.month >= 10 else parsed_date.year
+        )
+        expected_fiscal_quarter = ((parsed_date.month - 10) % 12) // 3 + 1
+        if (
+            calendar_year,
+            calendar_quarter,
+            calendar_month,
+            calendar_day,
+        ) != (
+            parsed_date.year,
+            expected_calendar_quarter,
+            parsed_date.month,
+            parsed_date.day,
+        ):
+            raise ValueError(f"Calendar fields disagree with record_date at row {index}")
+        if (fiscal_year, fiscal_quarter) != (
+            expected_fiscal_year,
+            expected_fiscal_quarter,
+        ):
+            raise ValueError(f"Fiscal fields disagree with record_date at row {index}")
 
         key = (
             parsed_date.isoformat(),
-            str(raw["security_type_desc"]).strip(),
-            str(raw["security_desc"]).strip(),
+            security_type,
+            security_description,
         )
         if key in seen:
-            duplicate_count += 1
-            continue
+            raise ValueError(f"Duplicate composite key at row {index}: {key}")
         seen.add(key)
 
         normalized.append(
@@ -160,12 +204,12 @@ def normalize(raw_rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dic
                     "" if rate is None else format(rate, "f")
                 ),
                 "source_line_number": source_line,
-                "fiscal_year": int(raw["record_fiscal_year"]),
-                "fiscal_quarter": int(raw["record_fiscal_quarter"]),
-                "calendar_year": int(raw["record_calendar_year"]),
-                "calendar_quarter": int(raw["record_calendar_quarter"]),
-                "calendar_month": int(raw["record_calendar_month"]),
-                "calendar_day": int(raw["record_calendar_day"]),
+                "fiscal_year": fiscal_year,
+                "fiscal_quarter": fiscal_quarter,
+                "calendar_year": calendar_year,
+                "calendar_quarter": calendar_quarter,
+                "calendar_month": calendar_month,
+                "calendar_day": calendar_day,
                 "source_url": API_ENDPOINT,
             }
         )
@@ -191,7 +235,7 @@ def normalize(raw_rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dic
         "status": "PASS_WITH_WARNINGS" if issues else "PASS",
         "raw_row_count": len(raw_rows),
         "output_row_count": len(normalized),
-        "duplicates_removed": duplicate_count,
+        "duplicate_key_count": 0,
         "unique_key": ["record_date", "security_type", "security_description"],
         "unique_key_count": len(seen),
         "null_counts": null_counts,
@@ -205,11 +249,18 @@ def normalize(raw_rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dic
 
 def write_outputs(
     output_dir: Path,
+    raw_rows: list[dict[str, Any]],
     rows: list[dict[str, Any]],
     quality: dict[str, Any],
     collection: dict[str, Any],
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    with (output_dir / "raw_treasury_average_interest_rates.jsonl").open(
+        "w", encoding="utf-8"
+    ) as handle:
+        for row in raw_rows:
+            handle.write(json.dumps(row, ensure_ascii=False) + "\n")
 
     with (output_dir / "treasury_average_interest_rates.csv").open(
         "w", encoding="utf-8", newline=""
@@ -260,6 +311,30 @@ def write_outputs(
             encoding="utf-8",
         )
 
+    manifest_files = [
+        "raw_treasury_average_interest_rates.jsonl",
+        "treasury_average_interest_rates.csv",
+        "treasury_average_interest_rates.jsonl",
+        "schema.json",
+        "quality_report.json",
+        "collection_metadata.json",
+    ]
+    manifest: dict[str, Any] = {
+        "hash_algorithm": "sha256",
+        "row_counts": {"raw": len(raw_rows), "normalized": len(rows)},
+        "files": {},
+    }
+    for filename in manifest_files:
+        path = output_dir / filename
+        manifest["files"][filename] = {
+            "bytes": path.stat().st_size,
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
+    (output_dir / "manifest.json").write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -276,7 +351,7 @@ def main() -> int:
         quality["validation_issues"].append(
             "API total-count does not match collected raw rows"
         )
-    write_outputs(args.output_dir, rows, quality, collection)
+    write_outputs(args.output_dir, raw_rows, rows, quality, collection)
     print(
         json.dumps(
             {

@@ -33,9 +33,12 @@ source records. They are retained as blank measures and surfaced in
 ```text
 .
 ├── collect_treasury_rates.py
+├── validate_artifacts.py
 ├── data/
 │   ├── collection_metadata.json
+│   ├── manifest.json
 │   ├── quality_report.json
+│   ├── raw_treasury_average_interest_rates.jsonl
 │   ├── schema.json
 │   ├── treasury_average_interest_rates.csv
 │   └── treasury_average_interest_rates.jsonl
@@ -68,6 +71,12 @@ Run the offline unit tests:
 python -m unittest discover -s tests -v
 ```
 
+Validate every committed artifact without a network request:
+
+```bash
+python validate_artifacts.py --output-dir data
+```
+
 ## What the pipeline checks
 
 - Retries transient request failures with exponential backoff.
@@ -75,10 +84,17 @@ python -m unittest discover -s tests -v
 - Fails fast when required source fields disappear.
 - Parses dates, percentages, and numeric calendar fields into stable types.
 - Uses `record_date + security_type + security_description` as a composite key.
-- Removes exact duplicate keys and reports the count.
+- Fails on empty datasets, blank keys, duplicate keys, invalid domain values,
+  and inconsistent calendar or fiscal fields.
 - Reports nulls, date coverage, suspicious percentage values, and API metadata.
 - Writes the official API endpoint on every output row for durable provenance.
+- Saves the raw API rows and verifies both normalized formats against them.
+- Records SHA-256 hashes and byte sizes for six generated artifacts.
 - Exits non-zero on a failed collection or validation.
+
+GitHub Actions compiles and tests the collector on Python 3.10–3.13, validates
+all committed artifacts offline, and performs a complete live-source collection
+on branch pushes.
 
 ## Data grain
 

@@ -1,4 +1,6 @@
 import unittest
+from http.client import RemoteDisconnected
+from unittest import mock
 
 import collect_treasury_rates as collector
 
@@ -31,12 +33,9 @@ class NormalizeTests(unittest.TestCase):
         self.assertEqual(rows[0]["calendar_month"], 6)
         self.assertEqual(rows[0]["source_url"], collector.API_ENDPOINT)
 
-    def test_removes_duplicate_composite_key(self):
-        rows, quality = collector.normalize([source_row(), source_row()])
-
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(quality["duplicates_removed"], 1)
-        self.assertEqual(quality["unique_key_count"], 1)
+    def test_fails_on_duplicate_composite_key(self):
+        with self.assertRaisesRegex(ValueError, "Duplicate composite key"):
+            collector.normalize([source_row(), source_row()])
 
     def test_preserves_source_null_as_warning(self):
         rows, quality = collector.normalize(
@@ -57,6 +56,46 @@ class NormalizeTests(unittest.TestCase):
     def test_fails_on_invalid_date(self):
         with self.assertRaisesRegex(ValueError, "Invalid typed value"):
             collector.normalize([source_row(record_date="not-a-date")])
+
+    def test_fails_on_empty_dataset(self):
+        with self.assertRaisesRegex(ValueError, "Empty dataset"):
+            collector.normalize([])
+
+    def test_fails_on_blank_key(self):
+        with self.assertRaisesRegex(ValueError, "Blank composite-key field"):
+            collector.normalize([source_row(security_desc="  ")])
+
+    def test_fails_on_out_of_range_rate(self):
+        with self.assertRaisesRegex(ValueError, "outside 0..100"):
+            collector.normalize([source_row(avg_interest_rate_amt="100.001")])
+
+    def test_fails_on_calendar_mismatch(self):
+        with self.assertRaisesRegex(ValueError, "Calendar fields disagree"):
+            collector.normalize([source_row(record_calendar_month="05")])
+
+
+class FetchTests(unittest.TestCase):
+    def test_retries_remote_disconnect(self):
+        response = mock.MagicMock()
+        response.__enter__.return_value = [b"unused"]
+        response.__exit__.return_value = False
+        with (
+            mock.patch(
+                "urllib.request.urlopen",
+                side_effect=[
+                    RemoteDisconnected("closed"),
+                    RemoteDisconnected("closed"),
+                    response,
+                ],
+            ) as urlopen,
+            mock.patch("time.sleep") as sleep,
+            mock.patch("json.load", return_value={"data": []}),
+        ):
+            payload = collector.fetch_json("https://example.test", retries=3)
+
+        self.assertEqual(payload, {"data": []})
+        self.assertEqual(urlopen.call_count, 3)
+        self.assertEqual(sleep.call_args_list, [mock.call(1), mock.call(2)])
 
 
 class UrlTests(unittest.TestCase):
