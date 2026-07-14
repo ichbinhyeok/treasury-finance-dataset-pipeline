@@ -1,0 +1,33 @@
+{
+  "hash_algorithm": "sha256",
+  "row_counts": {
+    "raw": 4977,
+    "normalized": 4977
+  },
+  "files": {
+    "raw_treasury_average_interest_rates.jsonl": {
+      "bytes": 1760131,
+      "sha256": "6b9b5becd834d864b1f4ce9222eb324ff02fc42c937c5959b34de6369a1af3fa"
+    },
+    "treasury_average_interest_rates.csv": {
+      "bytes": 885482,
+      "sha256": "e70edc9749b0bfe8f3b00bf7de2221e52438bbc51a898ef4fcc6a7237f7e972d"
+    },
+    "treasury_average_interest_rates.jsonl": {
+      "bytes": 2139493,
+      "sha256": "fdfdb9e06f698e4f3f00f539cbc8b3530caf5dd30f941d7730ab93488ec8d126"
+    },
+    "schema.json": {
+      "bytes": 836,
+      "sha256": "bd0d795475a4ba6de52b28f96f98f68e4ee3f4442465997a335825542b465475"
+    },
+    "quality_report.json": {
+      "bytes": 1963,
+      "sha256": "f7bb1aea3373301af1c1256d8c7fe861cdeec088dc8d2e681998077efda6a061"
+    },
+    "collection_metadata.json": {
+      "bytes": 1960,
+      "sha256": "5384cd19b5564cc9675143cc55211565bc500ffcbab81872bd1f03b051e394b9"
+    }
+  }
+}

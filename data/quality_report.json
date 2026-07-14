@@ -2,7 +2,7 @@
   "status": "PASS_WITH_WARNINGS",
   "raw_row_count": 4977,
   "output_row_count": 4977,
-  "duplicates_removed": 0,
+  "duplicate_key_count": 0,
   "unique_key": [
     "record_date",
     "security_type",

@@ -24,3 +24,26 @@ jobs:
         run: python -m py_compile collect_treasury_rates.py
       - name: Unit tests
         run: python -m unittest discover -s tests -v
+
+  committed-artifacts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Validate hashes, row counts, and raw-to-normalized consistency
+        run: python validate_artifacts.py --output-dir data
+
+  live-source-smoke:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Collect the complete live dataset
+        run: python collect_treasury_rates.py --output-dir "${RUNNER_TEMP}/treasury-data" --page-size 613
+      - name: Validate the live collection
+        run: python validate_artifacts.py --output-dir "${RUNNER_TEMP}/treasury-data"

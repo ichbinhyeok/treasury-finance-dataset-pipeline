@@ -14,6 +14,12 @@ Each normalized row includes the official API endpoint in `source_url`. The
 collection timestamp, source-provided field labels, types, formats, and row
 total are retained in `data/collection_metadata.json`.
 
+The exact raw API rows used for the published normalized files are retained in
+`data/raw_treasury_average_interest_rates.jsonl`. SHA-256 hashes, file sizes,
+and raw/normalized row counts are recorded in `data/manifest.json`. Running
+`python validate_artifacts.py --output-dir data` verifies the full chain from
+raw snapshot to CSV, JSONL, quality report, metadata, and hashes.
+
 ## Rights and responsibility
 
 The repository's MIT license applies to the original collection and validation
