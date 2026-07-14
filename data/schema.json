@@ -1,0 +1,22 @@
+{
+  "dataset": "U.S. Treasury Average Interest Rates",
+  "primary_key": [
+    "record_date",
+    "security_type",
+    "security_description"
+  ],
+  "fields": {
+    "record_date": "ISO 8601 date reported by Treasury",
+    "security_type": "Top-level security category",
+    "security_description": "Treasury security or aggregate description",
+    "average_interest_rate_percent": "Decimal percentage, not a fraction",
+    "source_line_number": "Line number in the source Treasury table",
+    "fiscal_year": "U.S. federal fiscal year",
+    "fiscal_quarter": "U.S. federal fiscal quarter, 1-4",
+    "calendar_year": "Calendar year",
+    "calendar_quarter": "Calendar quarter, 1-4",
+    "calendar_month": "Calendar month, 1-12",
+    "calendar_day": "Calendar day, 1-31",
+    "source_url": "Official API endpoint used for provenance"
+  }
+}
