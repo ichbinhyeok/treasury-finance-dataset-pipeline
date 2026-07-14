@@ -247,6 +247,11 @@ def normalize(raw_rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dic
     return normalized, quality
 
 
+def write_text_lf(path: Path, content: str) -> None:
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write(content)
+
+
 def write_outputs(
     output_dir: Path,
     raw_rows: list[dict[str, Any]],
@@ -257,7 +262,7 @@ def write_outputs(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     with (output_dir / "raw_treasury_average_interest_rates.jsonl").open(
-        "w", encoding="utf-8"
+        "w", encoding="utf-8", newline="\n"
     ) as handle:
         for row in raw_rows:
             handle.write(json.dumps(row, ensure_ascii=False) + "\n")
@@ -265,12 +270,14 @@ def write_outputs(
     with (output_dir / "treasury_average_interest_rates.csv").open(
         "w", encoding="utf-8", newline=""
     ) as handle:
-        writer = csv.DictWriter(handle, fieldnames=OUTPUT_COLUMNS)
+        writer = csv.DictWriter(
+            handle, fieldnames=OUTPUT_COLUMNS, lineterminator="\n"
+        )
         writer.writeheader()
         writer.writerows(rows)
 
     with (output_dir / "treasury_average_interest_rates.jsonl").open(
-        "w", encoding="utf-8"
+        "w", encoding="utf-8", newline="\n"
     ) as handle:
         for row in rows:
             handle.write(json.dumps(row, ensure_ascii=False) + "\n")
@@ -306,9 +313,9 @@ def write_outputs(
         ("quality_report.json", quality),
         ("collection_metadata.json", metadata),
     ):
-        (output_dir / filename).write_text(
+        write_text_lf(
+            output_dir / filename,
             json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
         )
 
     manifest_files = [
@@ -330,9 +337,9 @@ def write_outputs(
             "bytes": path.stat().st_size,
             "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
         }
-    (output_dir / "manifest.json").write_text(
+    write_text_lf(
+        output_dir / "manifest.json",
         json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
     )
 
 

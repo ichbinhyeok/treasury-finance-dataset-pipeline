@@ -46,6 +46,9 @@ class ArtifactValidationTests(unittest.TestCase):
         self.assertEqual(result["status"], "PASS")
         self.assertEqual(result["raw_rows"], 1)
         self.assertEqual(result["files_hashed"], 6)
+        for path in self.output_dir.iterdir():
+            if path.is_file():
+                self.assertNotIn(b"\r\n", path.read_bytes())
 
     def test_detects_tampered_artifact(self):
         csv_path = self.output_dir / "treasury_average_interest_rates.csv"

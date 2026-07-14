@@ -1,5 +1,5 @@
 {
-  "collected_at_utc": "2026-07-14T11:11:34.439706+00:00",
+  "collected_at_utc": "2026-07-14T11:15:52.436900+00:00",
   "source_page": "https://fiscaldata.treasury.gov/datasets/average-interest-rates-treasury-securities/",
   "api_endpoint": "https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v2/accounting/od/avg_interest_rates",
   "license_note": "Public U.S. government source; verify downstream usage requirements.",
